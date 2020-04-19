@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "pretty": true,
+    "plugins": [
+      {
+        "name": "typescript-deno-plugin"
+      }
+    ],
+    "target": "esnext"
+  },
+  "include": ["./**/*.ts"]
+}

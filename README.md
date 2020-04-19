@@ -1,2 +1,1 @@
-# cancellation-token-deno
-CancellationToken for Deno
+# CancellationToken for Deno
