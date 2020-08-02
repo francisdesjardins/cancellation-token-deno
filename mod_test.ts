@@ -1,11 +1,11 @@
 import {
   assert,
   assertEquals,
-  assertThrows
-} from "https://deno.land/std@v0.38.0/testing/asserts.ts";
+  assertThrows,
+} from "https://deno.land/std@v0.63.0/testing/asserts.ts";
 import {
   CancellationTokenSource,
-  CancellationToken
+  CancellationToken,
 } from "./mod.ts";
 
 function beforeEach() {
