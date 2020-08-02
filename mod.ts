@@ -1,6 +1,8 @@
+// Copyright (c) 2020 Francis Desjardins. All rights reserved. MIT license.
+
 // interfaces
 
-export interface CancellationTokenUnregistration {
+export interface CancellationTokenRegistration {
   unregister: () => void;
 }
 
@@ -19,11 +21,15 @@ const enum CancellationState {
   NOTIFYING_COMPLETE = 3,
 }
 
+// symbols
+
+const createFor = Symbol("createFor");
+
 // helpers
 
 function getCancellationTokenRegistration(
-  unregister: () => void = () => void 0,
-): CancellationTokenUnregistration {
+  unregister: CancellationTokenRegistration["unregister"] = () => void 0,
+): CancellationTokenRegistration {
   return {
     unregister,
   };
@@ -44,23 +50,31 @@ export class CancellationToken {
     return getStaticSource(false).token;
   }
 
+  private static [createFor](
+    source: CancellationTokenSource,
+  ): CancellationToken {
+    const token = new this();
+    token.#source = source;
+    return token;
+  }
+
   #source: CancellationTokenSource;
 
-  public constructor(source: CancellationTokenSource) {
-    this.#source = source;
+  public constructor(cancelled: boolean = false) {
+    this.#source = getStaticSource(cancelled);
   }
 
   public get cancellationRequested(): boolean {
-    return this.#source.cancellationRequested;
+    return this.#source.cancellationRequested ?? false;
   }
 
   public get canBeCanceled(): boolean {
-    return this.#source.canBeCancelled;
+    return this.#source.canBeCancelled ?? false;
   }
 
   public async register(
     cb: CancellationTokenSourceRegisterCallback,
-  ): Promise<CancellationTokenUnregistration> {
+  ): Promise<CancellationTokenRegistration> {
     if (!this.canBeCanceled) {
       return getCancellationTokenRegistration();
     }
@@ -80,9 +94,9 @@ export class CancellationTokenSource {
     tokens: CancellationToken[],
   ): Promise<CancellationTokenSource> {
     const source = new this();
-    const sourceRegistrations: CancellationTokenUnregistration[] = [];
+    const sourceRegistrations: CancellationTokenRegistration[] = [];
 
-    for (const token of tokens) {
+    for (const token of [...tokens]) {
       if (token.canBeCanceled) {
         sourceRegistrations.push(
           await token.register(() => source.cancel()),
@@ -90,7 +104,7 @@ export class CancellationTokenSource {
       }
     }
 
-    await source.register(async () => {
+    await source.register(() => {
       for (const sourceRegistration of sourceRegistrations) {
         sourceRegistration.unregister();
       }
@@ -99,9 +113,9 @@ export class CancellationTokenSource {
     return source;
   }
 
-  #registrations: Array<CancellationTokenSourceRegisterCallback> = [];
+  #actions: Array<CancellationTokenSourceRegisterCallback> = [];
   #state = CancellationState.NOT_CANCELED;
-  #timer: number | undefined;
+  #timer?: ReturnType<typeof setTimeout>;
 
   constructor(cancelled?: boolean) {
     if (cancelled !== void 0) {
@@ -124,7 +138,7 @@ export class CancellationTokenSource {
   }
 
   public get token(): CancellationToken {
-    return new CancellationToken(this);
+    return CancellationToken[createFor](this);
   }
 
   public async cancel(): Promise<void> {
@@ -134,8 +148,8 @@ export class CancellationTokenSource {
 
     {
       this.#state = CancellationState.NOTIFYING;
-      for (const registration of this.#registrations) {
-        await registration();
+      for (const action of [...this.#actions]) {
+        await action();
       }
       this.#state = CancellationState.NOTIFYING_COMPLETE;
     }
@@ -156,26 +170,26 @@ export class CancellationTokenSource {
 
   public async register(
     cb: CancellationTokenSourceRegisterCallback,
-  ): Promise<CancellationTokenUnregistration> {
-    if (!this.cancellationRequested) {
-      this.#registrations.unshift(cb);
+  ): Promise<CancellationTokenRegistration> {
+    if (this.cancellationRequested) {
+      await cb();
 
-      return getCancellationTokenRegistration(
-        () => {
-          const registrationIndex = this.#registrations.findIndex(
-            (registration) => registration === cb,
-          );
-
-          if (registrationIndex > -1) {
-            this.#registrations.splice(registrationIndex, 1);
-          }
-        },
-      );
+      return getCancellationTokenRegistration();
     }
 
-    await cb();
+    this.#actions.unshift(cb);
 
-    return getCancellationTokenRegistration();
+    return getCancellationTokenRegistration(
+      () => {
+        for (const [actionIndex, action] of this.#actions.entries()) {
+          if (cb === action) {
+            this.#actions.splice(actionIndex, 1);
+
+            break;
+          }
+        }
+      },
+    );
   }
 }
 
