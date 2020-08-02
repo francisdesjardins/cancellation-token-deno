@@ -65,11 +65,11 @@ export class CancellationToken {
   }
 
   public get cancellationRequested(): boolean {
-    return this.#source.cancellationRequested ?? false;
+    return this.#source.cancellationRequested;
   }
 
   public get canBeCanceled(): boolean {
-    return this.#source.canBeCancelled ?? false;
+    return this.#source.canBeCancelled;
   }
 
   public async register(
@@ -146,13 +146,11 @@ export class CancellationTokenSource {
       return;
     }
 
-    {
-      this.#state = CancellationState.NOTIFYING;
-      for (const action of [...this.#actions]) {
-        await action();
-      }
-      this.#state = CancellationState.NOTIFYING_COMPLETE;
+    this.#state = CancellationState.NOTIFYING;
+    for (const action of [...this.#actions]) {
+      await action();
     }
+    this.#state = CancellationState.NOTIFYING_COMPLETE;
   }
 
   public cancelAfter(timeout: number): void {
