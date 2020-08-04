@@ -36,7 +36,6 @@ jobs:
         run: deno --version
 
       - name: Check format
-        run: deno fmt --check **/*.ts
-
+        run: deno fmt --check mod.ts
       - name: Run tests
         run: deno test
